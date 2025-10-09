@@ -21,10 +21,12 @@
     <java.version>21</java.version>
     <lombok.version>1.18.28</lombok.version>
     <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
 
   <dependencies>
-    <!-- Web (REST) -->
+    <!-- Spring Web (REST) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
@@ -60,13 +62,20 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
 
-    <!-- Mail (si lo usarás) -->
+    <!-- Mail (opcional) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-mail</artifactId>
     </dependency>
 
-    <!-- H2 para desarrollo -->
+    <!-- Microsoft SQL Server JDBC Driver -->
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
+      <version>12.6.1.jre11</version>
+    </dependency>
+
+    <!-- H2 (solo para desarrollo/local) -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
@@ -97,13 +106,14 @@
 
   <build>
     <plugins>
-      <!-- Compiler plugin -->
+      <!-- Compiler plugin: usa release para compatibilidad con Java 21 -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>${maven.compiler.plugin.version}</version>
         <configuration>
           <release>${java.version}</release>
+          <encoding>${project.build.sourceEncoding}</encoding>
           <annotationProcessorPaths>
             <path>
               <groupId>org.projectlombok</groupId>
@@ -114,18 +124,17 @@
         </configuration>
       </plugin>
 
-      <!-- Spring Boot Maven plugin -->
+      <!-- Spring Boot Maven plugin: usa la versión del parent (no declarar ${spring-boot.version} indefinida) -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <configuration>
-          <excludes>
-            <exclude>
-              <groupId>org.projectlombok</groupId>
-              <artifactId>lombok</artifactId>
-            </exclude>
-          </excludes>
-        </configuration>
+      </plugin>
+
+      <!-- Surefire para tests (opcional) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.1.2</version>
       </plugin>
     </plugins>
   </build>
