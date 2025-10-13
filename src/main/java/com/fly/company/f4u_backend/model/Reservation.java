@@ -28,6 +28,7 @@ public class Reservation {
 
     // getters y setters
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Long getFlightId() { return flightId; }
     public void setFlightId(Long flightId) { this.flightId = flightId; }
     public Long getSeatId() { return seatId; }
