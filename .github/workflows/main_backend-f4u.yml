@@ -60,12 +60,12 @@ jobs:
         run: |
           echo "🔍 Verificando salud del backend..."
           for i in {1..5}; do
-            if curl -f https://backend-f4u.azurewebsites.net/api/test/health; then
-              echo "Backend desplegado correctamente"
+            if curl -f https://backend-f4u-cyavghdvh3eyh5bc.brazilsouth-01.azurewebsites.net/api/test/health; then
+              echo "✅ Backend desplegado correctamente"
               exit 0
             fi
-            echo "Intento $i/5 fallido, esperando 10 segundos..."
+            echo "⏳ Intento $i/5 fallido, esperando 10 segundos..."
             sleep 10
           done
-          echo "Backend no responde después de 5 intentos"
+          echo "❌ Backend no responde después de 5 intentos"
           exit 1
