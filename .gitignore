@@ -31,3 +31,11 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### SECURITY - Archivos sensibles ###
+.env
+.env.local
+.env.*.local
+application-prod.properties
+**/application-prod.properties
+src/main/resources/application-prod.properties

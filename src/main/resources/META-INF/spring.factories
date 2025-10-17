@@ -1,0 +1,2 @@
+org.springframework.context.ApplicationContextInitializer=\
+  com.fly.company.f4u_backend.config.DotenvConfig
