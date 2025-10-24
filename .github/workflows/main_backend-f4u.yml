@@ -1,0 +1,71 @@
+name: Build and deploy JAR app to Azure Web App - Backend-F4U
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java version
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'microsoft'
+
+      - name: Build with Maven
+        run: mvn clean install -DskipTests
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-app
+          path: '${{ github.workspace }}/target/*.jar'
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: java-app
+
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'Backend-F4U'
+          slot-name: 'Production'
+          package: '*.jar'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_CDE5ECC1E9614E9BB8AA811A9E9AAFA9 }}
+          clean: true
+      
+      - name: Wait for App Service to start
+        run: sleep 60
+        
+      - name: Health Check
+        run: |
+          echo "🔍 Verificando salud del backend..."
+          for i in {1..5}; do
+            if curl -f https://backend-f4u-cyavghdvh3eyh5bc.brazilsouth-01.azurewebsites.net/api/test/health; then
+              echo "✅ Backend desplegado correctamente"
+              exit 0
+            fi
+            echo "⏳ Intento $i/5 fallido, esperando 10 segundos..."
+            sleep 10
+          done
+          echo "❌ Backend no responde después de 5 intentos"
+          exit 1
