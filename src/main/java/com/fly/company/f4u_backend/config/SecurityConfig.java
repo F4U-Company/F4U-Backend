@@ -71,9 +71,10 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
+                // Endpoints públicos - NO requieren autenticación
+                .requestMatchers("/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/test/**", "/api/health/**").permitAll()
                 // Endpoints que requieren autenticación
                 .requestMatchers("/api/auth/**").authenticated()
-                .requestMatchers("/api/flights/**").authenticated()  // Proteger vuelos
                 .requestMatchers("/api/reservations/**").authenticated()  // Proteger reservas
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/operator/**").hasAnyRole("OPERADOR", "ADMIN")
