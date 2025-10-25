@@ -26,6 +26,9 @@ public class SecurityConfig {
     
     @Value("${spring.profiles.active:default}")
     private String activeProfile;
+    
+    @Value("${cors.allowed.origins:http://localhost:5173,http://localhost:5174}")
+    private String allowedOrigins;
 
     public SecurityConfig(CustomJwtAuthenticationConverter jwtAuthenticationConverter) {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
@@ -89,15 +92,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",
-            "http://localhost:5173",  // Vite dev server
-            "http://localhost:5174",  // Vite dev server (alternate port)
-            "https://thankful-moss-0d2f3560f.1.azurestaticapps.net"
-        ));
+        
+        // Obtener orígenes permitidos desde la variable de entorno
+        String[] origins = allowedOrigins.split(",");
+        configuration.setAllowedOrigins(Arrays.asList(origins));
+        
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L); // Cache preflight por 1 hora
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
