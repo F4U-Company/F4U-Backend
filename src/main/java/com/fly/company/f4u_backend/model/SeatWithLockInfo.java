@@ -22,8 +22,9 @@ public class SeatWithLockInfo {
     // Información de bloqueo
     private boolean locked;
     private long remainingLockSeconds;
+    private String lockedByUserId; // ID del usuario que bloqueó el asiento
     
-    public SeatWithLockInfo(Seat seat, boolean locked, long remainingLockSeconds) {
+    public SeatWithLockInfo(Seat seat, boolean locked, long remainingLockSeconds, String lockedByUserId) {
         this.id = seat.getId();
         this.vueloId = seat.getVueloId();
         this.numeroAsiento = seat.getNumeroAsiento();
@@ -37,6 +38,7 @@ public class SeatWithLockInfo {
         this.fechaActualizacion = seat.getFechaActualizacion();
         this.locked = locked;
         this.remainingLockSeconds = remainingLockSeconds;
+        this.lockedByUserId = lockedByUserId;
     }
     
     // Getters y Setters
@@ -78,4 +80,7 @@ public class SeatWithLockInfo {
     
     public long getRemainingLockSeconds() { return remainingLockSeconds; }
     public void setRemainingLockSeconds(long remainingLockSeconds) { this.remainingLockSeconds = remainingLockSeconds; }
+    
+    public String getLockedByUserId() { return lockedByUserId; }
+    public void setLockedByUserId(String lockedByUserId) { this.lockedByUserId = lockedByUserId; }
 }

@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,25 @@ public class SeatLockService {
         }
     }
 
+    private final SimpMessagingTemplate messagingTemplate;
+
+    public SeatLockService(SimpMessagingTemplate messagingTemplate) {
+        this.messagingTemplate = messagingTemplate;
+    }
+
+    private void publishLockEvent(Long seatId, String type, String userId, long remainingSeconds) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("seatId", seatId);
+            payload.put("type", type); // locked | unlocked | renewed | expired
+            if (userId != null) payload.put("lockedByUserId", userId);
+            payload.put("remainingSeconds", remainingSeconds);
+            messagingTemplate.convertAndSend("/topic/seat-locks", payload);
+        } catch (Exception e) {
+            log.warn("No se pudo publicar evento de lock por websocket: {}", e.getMessage());
+        }
+    }
+
     /**
      * Intenta bloquear un asiento. Retorna true si se logra bloquear.
      * Si el asiento ya está bloqueado por otro usuario y no ha expirado, retorna false.
@@ -47,6 +67,7 @@ public class SeatLockService {
         if (existingLock == null || existingLock.expiryTime < now) {
             locks.put(seatId, new SeatLock(expiryTime, userId));
             log.info("🔒 Asiento {} bloqueado por usuario {} por 15 minutos", seatId, userId);
+            publishLockEvent(seatId, "locked", userId, (LOCK_DURATION_MS / 1000));
             return true;
         }
         
@@ -54,6 +75,7 @@ public class SeatLockService {
         if (existingLock.userId.equals(userId)) {
             locks.put(seatId, new SeatLock(expiryTime, userId));
             log.info("🔄 Bloqueo del asiento {} renovado para usuario {}", seatId, userId);
+            publishLockEvent(seatId, "renewed", userId, (LOCK_DURATION_MS / 1000));
             return true;
         }
         
@@ -69,6 +91,7 @@ public class SeatLockService {
         SeatLock removed = locks.remove(seatId);
         if (removed != null) {
             log.info("🔓 Bloqueo liberado para asiento {}", seatId);
+            publishLockEvent(seatId, "unlocked", removed.userId, 0);
         }
     }
 
@@ -108,6 +131,20 @@ public class SeatLockService {
     }
 
     /**
+     * Obtiene el ID del usuario que bloqueó el asiento
+     */
+    public String getLockedByUserId(Long seatId) {
+        SeatLock lock = locks.get(seatId);
+        if (lock == null) {
+            return null;
+        }
+        
+        long now = Instant.now().toEpochMilli();
+        // Solo retornar el userId si el bloqueo aún está activo
+        return lock.expiryTime > now ? lock.userId : null;
+    }
+
+    /**
      * Obtiene información sobre todos los bloqueos activos
      */
     public Map<String, Object> getLockInfo() {
@@ -140,6 +177,8 @@ public class SeatLockService {
         while (iterator.hasNext()) {
             var entry = iterator.next();
             if (entry.getValue().expiryTime < now) {
+                // publicar expiración antes de remover
+                publishLockEvent(entry.getKey(), "expired", entry.getValue().userId, 0);
                 iterator.remove();
                 removed++;
             }

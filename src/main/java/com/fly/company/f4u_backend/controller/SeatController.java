@@ -38,7 +38,8 @@ public class SeatController {
             .map(seat -> {
                 boolean locked = seatLockService.isLocked(seat.getId());
                 long remainingSeconds = seatLockService.getRemainingLockTimeSeconds(seat.getId());
-                return new SeatWithLockInfo(seat, locked, remainingSeconds);
+                String lockedByUserId = seatLockService.getLockedByUserId(seat.getId());
+                return new SeatWithLockInfo(seat, locked, remainingSeconds, lockedByUserId);
             })
             .collect(Collectors.toList());
         
