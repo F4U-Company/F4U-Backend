@@ -16,7 +16,7 @@ import com.fly.company.f4u_backend.service.ReservationService;
 import com.fly.company.f4u_backend.service.SeatLockService;
 
 @RestController
-@RequestMapping("/api/reservations")
+@RequestMapping("/api/reservaciones")
 public class ReservationController {
 
     private final SeatLockService seatLockService;
@@ -50,9 +50,9 @@ public class ReservationController {
         }
     }
 
+    // Endpoint adicional para mantener compatibilidad con frontend previo (inglés)
     @PostMapping("/confirm")
     public ResponseEntity<?> confirm(@RequestBody ReservationRequest req) {
-        // Mantener endpoint legacy para compatibilidad
         return createReservation(req);
     }
 
