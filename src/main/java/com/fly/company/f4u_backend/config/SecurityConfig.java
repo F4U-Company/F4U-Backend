@@ -34,10 +34,8 @@ public class SecurityConfig {
         this.jwtAuthenticationConverter = jwtAuthenticationConverter;
     }
 
-    // CRÍTICO: Ignorar completamente Spring Security SOLO para endpoints de salud/debug
     @Bean
     public WebSecurityCustomizer webSecurityCustomizer() {
-        // En producción, NO ignorar /api/debug/**
         if ("prod".equals(activeProfile)) {
             return (web) -> web.ignoring()
                 .requestMatchers("/api/test/**", "/api/health/**", "/actuator/health", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**");
@@ -46,12 +44,11 @@ public class SecurityConfig {
             .requestMatchers("/api/test/**", "/api/health/**", "/actuator/**", "/api/debug/**", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**");
     }
 
-    // SecurityFilterChain para endpoints públicos (sin JWT) - YA NO SE USA, se ignora arriba
     @Bean
     @Order(1)
     public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/error")  // Solo manejar errores
+            .securityMatcher("/error")
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(authz -> authz
@@ -62,7 +59,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // SecurityFilterChain para endpoints protegidos (con JWT)
     @Bean
     @Order(2)
     public SecurityFilterChain protectedFilterChain(HttpSecurity http) throws Exception {
@@ -71,14 +67,11 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                // Endpoints públicos - NO requieren autenticación
                 .requestMatchers("/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/test/**", "/api/health/**").permitAll()
-                // Endpoints que requieren autenticación
                 .requestMatchers("/api/auth/**").authenticated()
-                .requestMatchers("/api/reservations/**").authenticated()  // Proteger reservas
+                .requestMatchers("/api/reservaciones/**").authenticated()  // Asegúrate que esto dice "reservaciones" no "reservations"
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/operator/**").hasAnyRole("OPERADOR", "ADMIN")
-                // Cualquier otra petición requiere autenticación
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
@@ -94,14 +87,18 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Obtener orígenes permitidos desde la variable de entorno
-        String[] origins = allowedOrigins.split(",");
-        configuration.setAllowedOrigins(Arrays.asList(origins));
+        // ✅ SOLUCIÓN: Usar allowedOriginPatterns en lugar de allowedOrigins
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:5173",
+            "http://localhost:5174", 
+            "https://delightful-tree-0a83b250f.1.azurestaticapps.net",
+            "http://localhost:8080"
+        ));
         
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L); // Cache preflight por 1 hora
+        configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

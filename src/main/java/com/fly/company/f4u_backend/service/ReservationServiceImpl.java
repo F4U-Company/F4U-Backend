@@ -1,6 +1,8 @@
 package com.fly.company.f4u_backend.service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -131,5 +133,75 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public List<Reservation> getByFlight(Long vueloId) {
         return reservationRepository.findByVueloId(vueloId);
+    }
+
+    // ============ MÉTODOS EXISTENTES ============
+
+    @Override
+    public List<Reservation> getReservationsByUserEmail(String email) {
+        return reservationRepository.findByPasajeroEmail(email);
+    }
+
+    @Override
+    public List<Reservation> getActiveReservationsByUserEmail(String email) {
+        return reservationRepository.findByPasajeroEmailAndEstado(email, "CONFIRMADA");
+    }
+
+    @Override
+    public Map<String, Object> getUserStats(String email) {
+        Map<String, Object> stats = new HashMap<>();
+        
+        // Total de reservas
+        List<Reservation> allReservations = reservationRepository.findByPasajeroEmail(email);
+        stats.put("totalReservations", allReservations.size());
+        
+        // Reservas activas (CONFIRMADA)
+        List<Reservation> activeReservations = reservationRepository.findByPasajeroEmailAndEstado(email, "CONFIRMADA");
+        stats.put("activeReservations", activeReservations.size());
+        
+        // Millas acumuladas (1000 millas por reserva confirmada)
+        long accumulatedMiles = activeReservations.size() * 1000L;
+        stats.put("accumulatedMiles", accumulatedMiles);
+        
+        // Nivel basado en reservas confirmadas
+        String level = "Bronce";
+        if (activeReservations.size() >= 10) {
+            level = "Oro";
+        } else if (activeReservations.size() >= 5) {
+            level = "Plata";
+        }
+        stats.put("level", level);
+        
+        // Próximo vuelo (si hay reservas activas)
+        if (!activeReservations.isEmpty()) {
+            // Ordenar por fecha de reservación para obtener el más reciente
+            Reservation nextReservation = activeReservations.stream()
+                .sorted((r1, r2) -> r2.getFechaReservacion().compareTo(r1.getFechaReservacion()))
+                .findFirst()
+                .orElse(null);
+            if (nextReservation != null) {
+                stats.put("nextFlightDate", nextReservation.getFechaReservacion());
+            }
+        }
+        
+        return stats;
+    }
+
+    @Override
+    public Reservation getReservationByCode(String codigo) {
+        Optional<Reservation> reservation = reservationRepository.findByCodigoReservacion(codigo);
+        return reservation.orElse(null);
+    }
+
+    // ============ NUEVOS MÉTODOS CON INFORMACIÓN BÁSICA ============
+
+    @Override
+    public List<Reservation> getReservationsWithBasicInfoByEmail(String email) {
+        return reservationRepository.findReservationsByEmail(email);
+    }
+
+    @Override
+    public List<Reservation> getActiveReservationsWithBasicInfoByEmail(String email) {
+        return reservationRepository.findReservationsByEmailAndEstado(email, "CONFIRMADA");
     }
 }

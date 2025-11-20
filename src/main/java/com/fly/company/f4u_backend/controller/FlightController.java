@@ -3,6 +3,7 @@ package com.fly.company.f4u_backend.controller;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,11 +73,27 @@ public class FlightController {
         return ResponseEntity.ok(saved);
     }
 
+    /**
+     * Obtener un vuelo específico por ID - MEJORADO
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<?> get(@PathVariable Long id) {
-        return flightRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<Flight> getFlightById(@PathVariable Long id) {
+        log.info("GET /api/flights/{} - Obteniendo vuelo por ID", id);
+        
+        try {
+            Optional<Flight> flight = flightRepository.findById(id);
+            
+            if (flight.isPresent()) {
+                log.info("Vuelo encontrado: {} - {}", flight.get().getNumeroVuelo(), flight.get().getCiudadOrigen().getNombre() + " → " + flight.get().getCiudadDestino().getNombre());
+                return ResponseEntity.ok(flight.get());
+            } else {
+                log.warn("Vuelo con ID {} no encontrado", id);
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            log.error("Error al obtener vuelo {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @DeleteMapping("/{id}")
