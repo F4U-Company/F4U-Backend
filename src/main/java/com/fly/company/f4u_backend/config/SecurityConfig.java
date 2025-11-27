@@ -38,10 +38,10 @@ public class SecurityConfig {
     public WebSecurityCustomizer webSecurityCustomizer() {
         if ("prod".equals(activeProfile)) {
             return (web) -> web.ignoring()
-                .requestMatchers("/api/test/**", "/api/health/**", "/actuator/health", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**");
+                .requestMatchers("/api/test/**", "/api/health/**", "/actuator/health", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/reservaciones/**");
         }
         return (web) -> web.ignoring()
-            .requestMatchers("/api/test/**", "/api/health/**", "/actuator/**", "/api/debug/**", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**");
+            .requestMatchers("/api/test/**", "/api/health/**", "/actuator/**", "/api/debug/**", "/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/reservaciones/**");
     }
 
     @Bean
@@ -67,9 +67,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/test/**", "/api/health/**").permitAll()
+                .requestMatchers("/api/cities/**", "/api/flights/**", "/api/seats/**", "/api/seat-locks/**", "/api/reservaciones/**", "/api/test/**", "/api/health/**").permitAll()
                 .requestMatchers("/api/auth/**").authenticated()
-                .requestMatchers("/api/reservaciones/**").authenticated()  // Asegúrate que esto dice "reservaciones" no "reservations"
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/operator/**").hasAnyRole("OPERADOR", "ADMIN")
                 .anyRequest().authenticated()

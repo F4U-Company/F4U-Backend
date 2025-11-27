@@ -147,6 +147,33 @@ public class SeatLockService {
     }
 
     /**
+     * Verifica si un asiento está bloqueado por un usuario específico
+     */
+    public boolean isLockedByUser(Long seatId, String userId) {
+        if (userId == null) {
+            return false;
+        }
+
+        SeatLock lock = locks.get(seatId);
+        if (lock == null) {
+            return false;
+        }
+
+        long now = Instant.now().toEpochMilli();
+        // Verificar que el bloqueo no haya expirado y que sea del usuario correcto
+        boolean isActive = lock.expiryTime > now;
+        boolean isSameUser = lock.userId != null && lock.userId.equals(userId);
+
+        // Si el bloqueo expiró, limpiarlo
+        if (!isActive) {
+            locks.remove(seatId);
+            return false;
+        }
+
+        return isSameUser;
+    }
+
+    /**
      * Obtiene información sobre todos los bloqueos activos
      */
     public Map<String, Object> getLockInfo() {

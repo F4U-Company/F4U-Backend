@@ -1,10 +1,10 @@
 package com.fly.company.f4u_backend.service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
@@ -51,10 +51,39 @@ public class ReservationServiceImpl implements ReservationService {
         if (!seat.getDisponible()) {
             throw new IllegalStateException("Seat already assigned");
         }
-        if (seatLockService.isLocked(req.getAsientoId()) == false) {
-            // Si no estaba bloqueado, no permitir confirmar (regla simple)
+        
+        // Verificar que el asiento esté bloqueado
+        if (!seatLockService.isLocked(req.getAsientoId())) {
             throw new IllegalStateException("Seat is not locked (lock before creating reservation)");
         }
+        
+        // NUEVA VALIDACIÓN: Verificar que el usuario que crea la reserva sea el mismo que bloqueó el asiento
+        // Para usuarios autenticados: usamos su email como userId
+        // Para usuarios NO autenticados: el frontend envía el lockUserId temporal que usó para bloquear
+        String userIdToCheck = req.getLockUserId(); // ID temporal usado en el bloqueo
+        if (userIdToCheck == null || userIdToCheck.isEmpty()) {
+            // Fallback: usar email si no se envió lockUserId (usuarios autenticados)
+            userIdToCheck = req.getPasajeroEmail();
+        }
+        if (userIdToCheck == null || userIdToCheck.isEmpty()) {
+            throw new IllegalArgumentException("Email del pasajero es requerido");
+        }
+        
+        // Logs de depuración
+        String lockedBy = seatLockService.getLockedByUserId(req.getAsientoId());
+        System.out.println("🔍 DEBUG VALIDACIÓN LOCK:");
+        System.out.println("   - AsientoId: " + req.getAsientoId());
+        System.out.println("   - lockUserId recibido: " + req.getLockUserId());
+        System.out.println("   - pasajeroEmail recibido: " + req.getPasajeroEmail());
+        System.out.println("   - userIdToCheck final: " + userIdToCheck);
+        System.out.println("   - Bloqueado por (backend): " + lockedBy);
+        System.out.println("   - ¿Coinciden?: " + (lockedBy != null && lockedBy.equals(userIdToCheck)));
+        
+        if (!seatLockService.isLockedByUser(req.getAsientoId(), userIdToCheck)) {
+            System.err.println("❌ VALIDACIÓN FALLIDA: Lock no coincide");
+            throw new IllegalStateException("Este asiento está siendo reservado por otro usuario. Por favor selecciona otro.");
+        }
+        System.out.println("✅ VALIDACIÓN EXITOSA: Usuario correcto");
 
         // Marcar seat como NO disponible (ocupado)
         seat.setDisponible(false);

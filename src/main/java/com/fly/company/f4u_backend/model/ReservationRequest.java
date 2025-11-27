@@ -9,6 +9,7 @@ public class ReservationRequest {
     private Long vueloId;
     private Long asientoId;
     private Long pasajeroId; // opcional
+    private String lockUserId; // ID usado para bloquear el asiento (puede ser email o ID temporal)
 
     // Pasajero (desnormalizado)
     private String pasajeroNombre;
@@ -97,4 +98,6 @@ public class ReservationRequest {
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
     public String getOrigenReserva() { return origenReserva; }
     public void setOrigenReserva(String origenReserva) { this.origenReserva = origenReserva; }
+    public String getLockUserId() { return lockUserId; }
+    public void setLockUserId(String lockUserId) { this.lockUserId = lockUserId; }
 }
