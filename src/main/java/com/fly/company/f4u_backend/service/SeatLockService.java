@@ -14,19 +14,19 @@ import org.springframework.stereotype.Service;
 @Service
 public class SeatLockService {
     private static final Logger log = LoggerFactory.getLogger(SeatLockService.class);
-    
+
     // Map que guarda: seatId -> información del bloqueo
     private final Map<Long, SeatLock> locks = new ConcurrentHashMap<>();
-    
+
     // Duración del bloqueo: 15 minutos
     private final long LOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutos
-    
+
     // Clase interna para almacenar información del bloqueo
     private static class SeatLock {
         final long expiryTime;
         final String userId; // Opcional: para rastrear quién bloqueó
         final Instant lockedAt;
-        
+
         SeatLock(long expiryTime, String userId) {
             this.expiryTime = expiryTime;
             this.userId = userId;
@@ -45,7 +45,8 @@ public class SeatLockService {
             Map<String, Object> payload = new HashMap<>();
             payload.put("seatId", seatId);
             payload.put("type", type); // locked | unlocked | renewed | expired
-            if (userId != null) payload.put("lockedByUserId", userId);
+            if (userId != null)
+                payload.put("lockedByUserId", userId);
             payload.put("remainingSeconds", remainingSeconds);
             messagingTemplate.convertAndSend("/topic/seat-locks", payload);
         } catch (Exception e) {
@@ -55,14 +56,15 @@ public class SeatLockService {
 
     /**
      * Intenta bloquear un asiento. Retorna true si se logra bloquear.
-     * Si el asiento ya está bloqueado por otro usuario y no ha expirado, retorna false.
+     * Si el asiento ya está bloqueado por otro usuario y no ha expirado, retorna
+     * false.
      */
     public boolean tryLock(Long seatId, String userId) {
         long now = Instant.now().toEpochMilli();
         long expiryTime = now + LOCK_DURATION_MS;
-        
+
         SeatLock existingLock = locks.get(seatId);
-        
+
         // Si no hay bloqueo o el bloqueo expiró, crear nuevo bloqueo
         if (existingLock == null || existingLock.expiryTime < now) {
             locks.put(seatId, new SeatLock(expiryTime, userId));
@@ -70,7 +72,7 @@ public class SeatLockService {
             publishLockEvent(seatId, "locked", userId, (LOCK_DURATION_MS / 1000));
             return true;
         }
-        
+
         // Si el mismo usuario intenta bloquear de nuevo, renovar el bloqueo
         if (existingLock.userId.equals(userId)) {
             locks.put(seatId, new SeatLock(expiryTime, userId));
@@ -78,7 +80,7 @@ public class SeatLockService {
             publishLockEvent(seatId, "renewed", userId, (LOCK_DURATION_MS / 1000));
             return true;
         }
-        
+
         // El asiento está bloqueado por otro usuario
         log.warn("❌ Asiento {} ya está bloqueado por otro usuario", seatId);
         return false;
@@ -103,15 +105,15 @@ public class SeatLockService {
         if (lock == null) {
             return false;
         }
-        
+
         long now = Instant.now().toEpochMilli();
         boolean locked = lock.expiryTime > now;
-        
+
         // Si el bloqueo expiró, limpiarlo
         if (!locked) {
             locks.remove(seatId);
         }
-        
+
         return locked;
     }
 
@@ -123,10 +125,10 @@ public class SeatLockService {
         if (lock == null) {
             return 0;
         }
-        
+
         long now = Instant.now().toEpochMilli();
         long remaining = lock.expiryTime - now;
-        
+
         return remaining > 0 ? remaining / 1000 : 0;
     }
 
@@ -138,7 +140,7 @@ public class SeatLockService {
         if (lock == null) {
             return null;
         }
-        
+
         long now = Instant.now().toEpochMilli();
         // Solo retornar el userId si el bloqueo aún está activo
         return lock.expiryTime > now ? lock.userId : null;
@@ -150,18 +152,18 @@ public class SeatLockService {
     public Map<String, Object> getLockInfo() {
         Map<String, Object> info = new HashMap<>();
         long now = Instant.now().toEpochMilli();
-        
+
         int activeLocksCount = 0;
         for (Map.Entry<Long, SeatLock> entry : locks.entrySet()) {
             if (entry.getValue().expiryTime > now) {
                 activeLocksCount++;
             }
         }
-        
+
         info.put("totalLocks", locks.size());
         info.put("activeLocks", activeLocksCount);
         info.put("lockDurationMinutes", LOCK_DURATION_MS / 60000);
-        
+
         return info;
     }
 
@@ -172,7 +174,7 @@ public class SeatLockService {
     public void cleanupExpiredLocks() {
         long now = Instant.now().toEpochMilli();
         int removed = 0;
-        
+
         var iterator = locks.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
@@ -183,7 +185,7 @@ public class SeatLockService {
                 removed++;
             }
         }
-        
+
         if (removed > 0) {
             log.info("🧹 Limpieza automática: {} bloqueos expirados eliminados", removed);
         }

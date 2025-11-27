@@ -1,16 +1,20 @@
 package com.fly.company.f4u_backend.service;
 
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fly.company.f4u_backend.model.Flight;
 import com.fly.company.f4u_backend.model.Reservation;
 import com.fly.company.f4u_backend.model.ReservationRequest;
 import com.fly.company.f4u_backend.model.Seat;
+import com.fly.company.f4u_backend.repository.FlightRepository;
 import com.fly.company.f4u_backend.repository.ReservationRepository;
 import com.fly.company.f4u_backend.repository.SeatRepository;
 
@@ -20,13 +24,19 @@ public class ReservationServiceImpl implements ReservationService {
     private final ReservationRepository reservationRepository;
     private final SeatRepository seatRepository;
     private final SeatLockService seatLockService;
+    private final EmailService emailService;
+    private final FlightRepository flightRepository;
 
     public ReservationServiceImpl(ReservationRepository reservationRepository,
             SeatRepository seatRepository,
-            SeatLockService seatLockService) {
+            SeatLockService seatLockService,
+            EmailService emailService,
+            FlightRepository flightRepository) {
         this.reservationRepository = reservationRepository;
         this.seatRepository = seatRepository;
         this.seatLockService = seatLockService;
+        this.emailService = emailService;
+        this.flightRepository = flightRepository;
     }
 
     @Override
@@ -82,7 +92,8 @@ public class ReservationServiceImpl implements ReservationService {
         }
         java.math.BigDecimal precioTotal = precioAsiento.add(extras);
 
-        // Flags definitivos (incluidos automáticamente en primera / maleta bodega en ejecutiva)
+        // Flags definitivos (incluidos automáticamente en primera / maleta bodega en
+        // ejecutiva)
         boolean maletaCabina = primera || Boolean.TRUE.equals(req.getExtraMaletaCabina());
         boolean maletaBodega = primera || ejecutiva || Boolean.TRUE.equals(req.getExtraMaletaBodega());
         boolean seguro50 = primera || Boolean.TRUE.equals(req.getExtraSeguro50());
@@ -90,39 +101,83 @@ public class ReservationServiceImpl implements ReservationService {
         boolean asistencia = primera || Boolean.TRUE.equals(req.getExtraAsistenciaEspecial());
 
         Reservation res = new Reservation(
-            req.getVueloId(),
-            req.getAsientoId(),
-            req.getPasajeroId(),
-            req.getPasajeroNombre(),
-            req.getPasajeroApellido(),
-            req.getPasajeroEmail(),
-            req.getPasajeroTelefono(),
-            req.getPasajeroDocumentoTipo(),
-            req.getPasajeroDocumentoNumero(),
-            req.getPasajeroFechaNacimiento(),
-            req.getClase(),
-            precioAsiento,
-            extras,
-            precioTotal,
-            maletaCabina,
-            maletaBodega,
-            seguro50,
-            seguro100,
-            asistencia,
-            req.getMetodoPago(),
-            req.getReferenciaPago(),
-            req.getEstadoPago(),
-            req.getEstado() != null ? req.getEstado() : "CONFIRMADA",
-            req.getObservaciones(),
-            req.getOrigenReserva()
-        );
+                req.getVueloId(),
+                req.getAsientoId(),
+                req.getPasajeroId(),
+                req.getPasajeroNombre(),
+                req.getPasajeroApellido(),
+                req.getPasajeroEmail(),
+                req.getPasajeroTelefono(),
+                req.getPasajeroDocumentoTipo(),
+                req.getPasajeroDocumentoNumero(),
+                req.getPasajeroFechaNacimiento(),
+                req.getClase(),
+                precioAsiento,
+                extras,
+                precioTotal,
+                maletaCabina,
+                maletaBodega,
+                seguro50,
+                seguro100,
+                asistencia,
+                req.getMetodoPago(),
+                req.getReferenciaPago(),
+                req.getEstadoPago(),
+                req.getEstado() != null ? req.getEstado() : "CONFIRMADA",
+                req.getObservaciones(),
+                req.getOrigenReserva());
 
         Reservation saved = reservationRepository.save(res);
 
         // liberar lock
         seatLockService.releaseLock(req.getAsientoId());
 
+        // Enviar correo de confirmación
+        try {
+            sendConfirmationEmail(saved, seat);
+        } catch (Exception e) {
+            System.err.println("Error al enviar correo de confirmación: " + e.getMessage());
+            // No lanzamos excepción para que no falle la reserva si el correo falla
+        }
+
         return saved;
+    }
+
+    /**
+     * Envía el correo de confirmación de reserva
+     */
+    private void sendConfirmationEmail(Reservation reservation, Seat seat) {
+        // Obtener información del vuelo
+        Optional<Flight> flightOpt = flightRepository.findById(reservation.getVueloId());
+        if (flightOpt.isEmpty()) {
+            System.err.println("No se pudo enviar correo: vuelo no encontrado");
+            return;
+        }
+
+        Flight flight = flightOpt.get();
+
+        // Formatear fechas en español
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM 'de' yyyy 'a las' HH:mm",
+                Locale.forLanguageTag("es-ES"));
+        String departureDate = flight.getFechaSalida().format(formatter);
+        String arrivalDate = flight.getFechaLlegada().format(formatter);
+
+        // Obtener nombres de ciudades
+        String origin = flight.getCiudadOrigen() != null ? flight.getCiudadOrigen().getNombre() : "N/A";
+        String destination = flight.getCiudadDestino() != null ? flight.getCiudadDestino().getNombre() : "N/A";
+
+        // Obtener número de asiento
+        String seatNumber = seat.getNumeroAsiento() != null ? seat.getNumeroAsiento() : "N/A";
+
+        // Enviar correo
+        emailService.sendReservationConfirmation(
+                reservation,
+                flight.getNumeroVuelo(),
+                origin,
+                destination,
+                departureDate,
+                arrivalDate,
+                seatNumber);
     }
 
     @Override
@@ -150,19 +205,19 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public Map<String, Object> getUserStats(String email) {
         Map<String, Object> stats = new HashMap<>();
-        
+
         // Total de reservas
         List<Reservation> allReservations = reservationRepository.findByPasajeroEmail(email);
         stats.put("totalReservations", allReservations.size());
-        
+
         // Reservas activas (CONFIRMADA)
         List<Reservation> activeReservations = reservationRepository.findByPasajeroEmailAndEstado(email, "CONFIRMADA");
         stats.put("activeReservations", activeReservations.size());
-        
+
         // Millas acumuladas (1000 millas por reserva confirmada)
         long accumulatedMiles = activeReservations.size() * 1000L;
         stats.put("accumulatedMiles", accumulatedMiles);
-        
+
         // Nivel basado en reservas confirmadas
         String level = "Bronce";
         if (activeReservations.size() >= 10) {
@@ -171,19 +226,19 @@ public class ReservationServiceImpl implements ReservationService {
             level = "Plata";
         }
         stats.put("level", level);
-        
+
         // Próximo vuelo (si hay reservas activas)
         if (!activeReservations.isEmpty()) {
             // Ordenar por fecha de reservación para obtener el más reciente
             Reservation nextReservation = activeReservations.stream()
-                .sorted((r1, r2) -> r2.getFechaReservacion().compareTo(r1.getFechaReservacion()))
-                .findFirst()
-                .orElse(null);
+                    .sorted((r1, r2) -> r2.getFechaReservacion().compareTo(r1.getFechaReservacion()))
+                    .findFirst()
+                    .orElse(null);
             if (nextReservation != null) {
                 stats.put("nextFlightDate", nextReservation.getFechaReservacion());
             }
         }
-        
+
         return stats;
     }
 
