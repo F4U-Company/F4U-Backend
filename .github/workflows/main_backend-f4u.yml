@@ -74,5 +74,5 @@ jobs:
             echo "⏳ Intento $i/5 fallido, esperando 15 segundos..."
             sleep 15
           done
-          echo "❌ Backend no responde después de 5 intentos"
+          echo " Backend no responde después de 5 intentos"
           exit 1
