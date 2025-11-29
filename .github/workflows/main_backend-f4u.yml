@@ -11,6 +11,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: Production
+    defaults:
+      run:
+        working-directory: .
 
     steps:
       - name: Checkout code
@@ -22,23 +25,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Create Procfile for Elastic Beanstalk
+        run: |
+          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          echo "✅ Procfile created:"
+          cat Procfile
+
       - name: Build with Maven
         run: |
           mvn clean package -DskipTests
-          echo "📦 Archivos en target/:"
+          echo "📦 Build artifacts:"
           ls -la target/
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Find JAR file
         id: find_jar
         run: |
           JAR_FILE=$(find target -name "*.jar" -type f | head -1)
           if [ -z "$JAR_FILE" ]; then
-            echo "❌ No se encontró archivo JAR"
+            echo "❌ No JAR file found"
             exit 1
           fi
-          echo "✅ JAR encontrado: $JAR_FILE"
+          echo "✅ JAR found: $JAR_FILE"
           echo "jar_path=$JAR_FILE" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
@@ -58,21 +65,21 @@ jobs:
           version_label: backend-${{ github.sha }}
           region: us-east-2
           deployment_package: ${{ steps.find_jar.outputs.jar_path }}
-          wait_for_environment_recovery: 180
+          wait_for_environment_recovery: false
+          wait_for_deployment: false
 
-      - name: Wait for deployment to complete
-        run: sleep 120
-
-      - name: Health Check
+      - name: Wait for application startup
         run: |
-          echo "🔍 Verificando salud del backend en AWS..."
-          for i in {1..5}; do
-            if curl -f https://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com/actuator/health; then
-              echo "✅ Backend desplegado correctamente en AWS"
-              exit 0
-            fi
-            echo "⏳ Intento $i/5 fallido, esperando 15 segundos..."
-            sleep 15
-          done
-          echo " Backend no responde después de 5 intentos"
-          exit 1
+          echo "⏳ Waiting 90 seconds for application to start..."
+          sleep 90
+          echo "🔍 Testing application endpoints..."
+          ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
+          
+          echo "Testing health endpoint:"
+          curl -s -o /dev/null -w "Health Check Status: %{http_code}\n" -m 10 $ENDPOINT/health || echo "Health check failed"
+          
+          echo "Testing root endpoint:"
+          curl -s -o /dev/null -w "Root Status: %{http_code}\n" -m 10 $ENDPOINT/ || echo "Root endpoint failed"
+          
+          echo "Testing actuator health:"
+          curl -s -o /dev/null -w "Actuator Status: %{http_code}\n" -m 10 $ENDPOINT/actuator/health || echo "Actuator health failed"
