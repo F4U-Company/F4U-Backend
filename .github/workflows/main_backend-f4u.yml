@@ -23,9 +23,23 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Maven
-        run: mvn clean package -DskipTests
+        run: |
+          mvn clean package -DskipTests
+          echo "📦 Archivos en target/:"
+          ls -la target/
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Find JAR file
+        id: find_jar
+        run: |
+          JAR_FILE=$(find target -name "*.jar" -type f | head -1)
+          if [ -z "$JAR_FILE" ]; then
+            echo "❌ No se encontró archivo JAR"
+            exit 1
+          fi
+          echo "✅ JAR encontrado: $JAR_FILE"
+          echo "jar_path=$JAR_FILE" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -43,7 +57,7 @@ jobs:
           environment_name: f4u-back
           version_label: backend-${{ github.sha }}
           region: us-east-2
-          deployment_package: target/*.jar
+          deployment_package: ${{ steps.find_jar.outputs.jar_path }}
           wait_for_environment_recovery: 180
 
       - name: Wait for deployment to complete
