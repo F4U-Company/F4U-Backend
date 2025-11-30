@@ -27,7 +27,7 @@ jobs:
 
       - name: Create Procfile for Elastic Beanstalk
         run: |
-          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          echo "web: java -Dserver.port=5000 -Dspring.datasource.url=\$DATABASE_URL -Dspring.datasource.username=\$DB_USERNAME -Dspring.datasource.password=\$DB_PASSWORD -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
           echo "✅ Procfile created:"
           cat Procfile
 
