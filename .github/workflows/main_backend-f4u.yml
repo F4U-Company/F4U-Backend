@@ -25,28 +25,32 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Create Procfile for Elastic Beanstalk
-        run: |
-          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
-          echo "✅ Procfile created:"
-          cat Procfile
-
       - name: Build with Maven
         run: |
           mvn clean package -DskipTests
           echo "📦 Build artifacts:"
           ls -la target/
+          echo "🔍 JAR files found:"
+          find target -name "*.jar" -type f
 
-      - name: Find JAR file
-        id: find_jar
+      - name: Create Procfile for Elastic Beanstalk
         run: |
-          JAR_FILE=$(find target -name "*.jar" -type f | head -1)
-          if [ -z "$JAR_FILE" ]; then
-            echo "❌ No JAR file found"
-            exit 1
-          fi
-          echo "✅ JAR found: $JAR_FILE"
-          echo "jar_path=$JAR_FILE" >> $GITHUB_OUTPUT
+          echo "web: java -Dserver.port=5000 -Dspring.datasource.url=\$DATABASE_URL -Dspring.datasource.username=\$DB_USERNAME -Dspring.datasource.password=\$DB_PASSWORD -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          echo "✅ Procfile created:"
+          cat Procfile
+
+      - name: Create deployment package
+        run: |
+          # Crear directorio temporal
+          mkdir -p eb-deployment
+          # Copiar el JAR específico
+          cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deployment/
+          cp Procfile eb-deployment/
+          # Crear zip
+          cd eb-deployment
+          zip -r ../deployment-package.zip .
+          cd ..
+          echo "📦 Deployment package created"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -64,22 +68,21 @@ jobs:
           environment_name: f4u-back
           version_label: backend-${{ github.sha }}
           region: us-east-2
-          deployment_package: ${{ steps.find_jar.outputs.jar_path }}
-          wait_for_environment_recovery: false
-          wait_for_deployment: false
+          deployment_package: deployment-package.zip
+          wait_for_environment_recovery: true
+          wait_for_deployment: true
 
-      - name: Wait for application startup
+      - name: Verify deployment
         run: |
           echo "⏳ Waiting 90 seconds for application to start..."
           sleep 90
           echo "🔍 Testing application endpoints..."
-          ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
+          ENDPOINT="https://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
           
           echo "Testing health endpoint:"
-          curl -s -o /dev/null -w "Health Check Status: %{http_code}\n" -m 10 $ENDPOINT/health || echo "Health check failed"
-          
-          echo "Testing root endpoint:"
-          curl -s -o /dev/null -w "Root Status: %{http_code}\n" -m 10 $ENDPOINT/ || echo "Root endpoint failed"
+          curl -f -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint failed"
           
           echo "Testing actuator health:"
-          curl -s -o /dev/null -w "Actuator Status: %{http_code}\n" -m 10 $ENDPOINT/actuator/health || echo "Actuator health failed"
+          curl -f -s -m 30 $ENDPOINT/actuator/health || echo "❌ Actuator health failed"
+          
+          echo "✅ Deployment verification completed"
