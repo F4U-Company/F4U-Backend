@@ -92,6 +92,6 @@ EOF
             echo "✅ Backend is working correctly!"
             echo "Response: $RESPONSE"
           else
-            echo " Backend might not be running correctly"
+            echo "❌ Backend might not be running correctly"
             echo "Response: $RESPONSE"
           fi
