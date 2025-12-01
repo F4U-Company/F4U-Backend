@@ -24,54 +24,17 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Maven
-        run: |
-          mvn clean package -DskipTests
-          echo "📦 Build completado:"
-          ls -la target/
-          echo "🔍 Archivos JAR encontrados:"
-          find target -name "*.jar" -type f
+        run: mvn clean package -DskipTests
 
-      - name: Verify correct JAR exists
-        id: verify_jar
+      - name: Create deployment package
         run: |
-          if [ -f "target/f4u-backend-0.0.1-SNAPSHOT.jar" ]; then
-            JAR_SIZE=$(stat -c%s "target/f4u-backend-0.0.1-SNAPSHOT.jar")
-            echo "✅ JAR correcto encontrado: f4u-backend-0.0.1-SNAPSHOT.jar ($((JAR_SIZE/1024/1024)) MB)"
-            echo "jar_exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ ERROR: f4u-backend-0.0.1-SNAPSHOT.jar NO encontrado"
-            echo "Contenido de target/:"
-            ls -la target/
-            exit 1
-          fi
-
-      - name: Create minimal deployment package
-        run: |
-          # Crear directorio temporal MINIMALISTA
           mkdir -p eb-deploy
-          
-          # Copiar SOLO el JAR esencial
           cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deploy/
-          
-          # Crear Procfile MÍNIMO
           echo "web: java -jar f4u-backend-0.0.1-SNAPSHOT.jar" > eb-deploy/Procfile
-          
-          echo "📁 Estructura final del deployment:"
-          ls -la eb-deploy/
-          echo "📊 Tamaño del JAR:"
-          ls -lh eb-deploy/f4u-backend-0.0.1-SNAPSHOT.jar
-
-      - name: Create and verify deployment package
-        run: |
           cd eb-deploy
           zip -r ../deployment-package.zip .
           cd ..
-          
-          echo "📦 Package creado:"
-          ls -lh deployment-package.zip
-          
-          echo "🔍 Contenido EXACTO del package:"
-          unzip -l deployment-package.zip
+          echo "📦 Package creado: $(ls -lh deployment-package.zip)"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -90,13 +53,13 @@ jobs:
           version_label: backend-${{ github.sha }}
           region: us-east-2
           deployment_package: deployment-package.zip
-          wait_for_environment_recovery: true
           wait_for_deployment: true
+          wait_for_environment_recovery: true
 
-      - name: Wait and verify deployment
+      - name: Verify deployment
         run: |
-          echo "⏳ Esperando 180 segundos para despliegue completo..."
-          sleep 180
-          echo "🔍 Verificando despliegue..."
+          echo "⏳ Esperando 60 segundos para verificación..."
+          sleep 60
+          echo "🔍 Verificando salud de la aplicación..."
           ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
-          curl -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint no responde"
+          curl -f $ENDPOINT/health || echo "⚠️ Health check falló, pero el deployment puede estar en progreso"
