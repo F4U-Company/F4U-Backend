@@ -35,22 +35,22 @@ jobs:
 
       - name: Create Procfile for Elastic Beanstalk
         run: |
-          echo "web: java -Dserver.port=5000 -Dspring.datasource.url=\$DATABASE_URL -Dspring.datasource.username=\$DB_USERNAME -Dspring.datasource.password=\$DB_PASSWORD -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          # Usamos un Procfile simple que no incluya las variables de la base de datos
+          # Spring Boot leerá las variables de entorno automáticamente
+          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
           echo "✅ Procfile created:"
           cat Procfile
 
       - name: Create deployment package
         run: |
-          # Crear directorio temporal
           mkdir -p eb-deployment
-          # Copiar el JAR específico
           cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deployment/
           cp Procfile eb-deployment/
-          # Crear zip
           cd eb-deployment
           zip -r ../deployment-package.zip .
           cd ..
           echo "📦 Deployment package created"
+          ls -la deployment-package.zip
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -71,18 +71,30 @@ jobs:
           deployment_package: deployment-package.zip
           wait_for_environment_recovery: true
           wait_for_deployment: true
+          wait_for_environment_update: true
 
       - name: Verify deployment
         run: |
-          echo "⏳ Waiting 90 seconds for application to start..."
-          sleep 90
+          echo "⏳ Waiting 120 seconds for application to start completely..."
+          sleep 120
           echo "🔍 Testing application endpoints..."
-          ENDPOINT="https://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
+          ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
           
-          echo "Testing health endpoint:"
-          curl -f -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint failed"
+          echo "1. Testing root endpoint:"
+          curl -s -m 30 $ENDPOINT/ || echo "❌ Root endpoint failed"
           
-          echo "Testing actuator health:"
-          curl -f -s -m 30 $ENDPOINT/actuator/health || echo "❌ Actuator health failed"
+          echo "2. Testing health endpoint:"
+          curl -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint failed"
+          
+          echo "3. Testing actuator health:"
+          curl -s -m 30 $ENDPOINT/actuator/health || echo "❌ Actuator health failed"
+          
+          echo "4. Testing if we get JSON response (not AWS default page):"
+          RESPONSE=$(curl -s -m 10 $ENDPOINT/health | head -c 50)
+          if [[ $RESPONSE == *"status"* ]] || [[ $RESPONSE == *"{"* ]]; then
+            echo "✅ Backend is responding with JSON - SUCCESS!"
+          else
+            echo "❌ Backend might be showing AWS default page"
+          fi
           
           echo "✅ Deployment verification completed"

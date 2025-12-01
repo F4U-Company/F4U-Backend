@@ -1,1 +1,1 @@
-web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod   
+web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
