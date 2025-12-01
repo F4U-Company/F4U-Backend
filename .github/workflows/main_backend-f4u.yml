@@ -35,9 +35,10 @@ jobs:
 
       - name: Create Procfile for Elastic Beanstalk
         run: |
-          # Usamos un Procfile simple que no incluya las variables de la base de datos
-          # Spring Boot leerá las variables de entorno automáticamente
-          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          # PROCFILE CORREGIDO - Sin variables que GitHub ofusque
+          cat > Procfile << 'EOF'
+web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+EOF
           echo "✅ Procfile created:"
           cat Procfile
 
@@ -71,30 +72,26 @@ jobs:
           deployment_package: deployment-package.zip
           wait_for_environment_recovery: true
           wait_for_deployment: true
-          wait_for_environment_update: true
 
       - name: Verify deployment
         run: |
-          echo "⏳ Waiting 120 seconds for application to start completely..."
+          echo "⏳ Waiting 120 seconds for application to start..."
           sleep 120
           echo "🔍 Testing application endpoints..."
           ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
           
-          echo "1. Testing root endpoint:"
-          curl -s -m 30 $ENDPOINT/ || echo "❌ Root endpoint failed"
-          
-          echo "2. Testing health endpoint:"
+          echo "1. Testing health endpoint:"
           curl -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint failed"
           
-          echo "3. Testing actuator health:"
+          echo "2. Testing actuator health:"
           curl -s -m 30 $ENDPOINT/actuator/health || echo "❌ Actuator health failed"
           
-          echo "4. Testing if we get JSON response (not AWS default page):"
-          RESPONSE=$(curl -s -m 10 $ENDPOINT/health | head -c 50)
-          if [[ $RESPONSE == *"status"* ]] || [[ $RESPONSE == *"{"* ]]; then
-            echo "✅ Backend is responding with JSON - SUCCESS!"
+          echo "3. Verifying JSON response:"
+          RESPONSE=$(curl -s -m 10 $ENDPOINT/health)
+          if [[ $RESPONSE == *"status"* ]] && [[ $RESPONSE == *"UP"* ]]; then
+            echo "✅ Backend is working correctly!"
+            echo "Response: $RESPONSE"
           else
-            echo "❌ Backend might be showing AWS default page"
+            echo " Backend might not be running correctly"
+            echo "Response: $RESPONSE"
           fi
-          
-          echo "✅ Deployment verification completed"
