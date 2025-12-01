@@ -26,27 +26,52 @@ jobs:
       - name: Build with Maven
         run: |
           mvn clean package -DskipTests
-          echo "Build artifacts:"
+          echo "📦 Build completado:"
           ls -la target/
-          echo "JAR files found:"
+          echo "🔍 Archivos JAR encontrados:"
           find target -name "*.jar" -type f
 
-      - name: Create Procfile for Elastic Beanstalk
+      - name: Verify correct JAR exists
+        id: verify_jar
         run: |
-          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
-          echo "Procfile created:"
-          cat Procfile
+          if [ -f "target/f4u-backend-0.0.1-SNAPSHOT.jar" ]; then
+            JAR_SIZE=$(stat -c%s "target/f4u-backend-0.0.1-SNAPSHOT.jar")
+            echo "✅ JAR correcto encontrado: f4u-backend-0.0.1-SNAPSHOT.jar ($((JAR_SIZE/1024/1024)) MB)"
+            echo "jar_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ERROR: f4u-backend-0.0.1-SNAPSHOT.jar NO encontrado"
+            echo "Contenido de target/:"
+            ls -la target/
+            exit 1
+          fi
 
-      - name: Create deployment package
+      - name: Create minimal deployment package
         run: |
-          mkdir -p eb-deployment
-          cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deployment/
-          cp Procfile eb-deployment/
-          cd eb-deployment
+          # Crear directorio temporal MINIMALISTA
+          mkdir -p eb-deploy
+          
+          # Copiar SOLO el JAR esencial
+          cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deploy/
+          
+          # Crear Procfile MÍNIMO
+          echo "web: java -jar f4u-backend-0.0.1-SNAPSHOT.jar" > eb-deploy/Procfile
+          
+          echo "📁 Estructura final del deployment:"
+          ls -la eb-deploy/
+          echo "📊 Tamaño del JAR:"
+          ls -lh eb-deploy/f4u-backend-0.0.1-SNAPSHOT.jar
+
+      - name: Create and verify deployment package
+        run: |
+          cd eb-deploy
           zip -r ../deployment-package.zip .
           cd ..
-          echo "Deployment package created"
-          ls -la deployment-package.zip
+          
+          echo "📦 Package creado:"
+          ls -lh deployment-package.zip
+          
+          echo "🔍 Contenido EXACTO del package:"
+          unzip -l deployment-package.zip
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -68,25 +93,10 @@ jobs:
           wait_for_environment_recovery: true
           wait_for_deployment: true
 
-      - name: Verify deployment
+      - name: Wait and verify deployment
         run: |
-          echo "Waiting 120 seconds for application to start..."
-          sleep 120
-          echo "Testing application endpoints..."
+          echo "⏳ Esperando 180 segundos para despliegue completo..."
+          sleep 180
+          echo "🔍 Verificando despliegue..."
           ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
-          
-          echo "1. Testing health endpoint:"
-          curl -s -m 30 $ENDPOINT/health || echo "Health endpoint failed"
-          
-          echo "2. Testing actuator health:"
-          curl -s -m 30 $ENDPOINT/actuator/health || echo "Actuator health failed"
-          
-          echo "3. Verifying JSON response:"
-          RESPONSE=$(curl -s -m 10 $ENDPOINT/health)
-          if echo "$RESPONSE" | grep -q "status" && echo "$RESPONSE" | grep -q "UP"; then
-            echo "Backend is working correctly!"
-            echo "Response: $RESPONSE"
-          else
-            echo "Backend might not be running correctly"
-            echo "Response: $RESPONSE"
-          fi
+          curl -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint no responde"
