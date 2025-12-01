@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - '**'
 
 jobs:
   deploy:
@@ -28,18 +26,15 @@ jobs:
       - name: Build with Maven
         run: |
           mvn clean package -DskipTests
-          echo "📦 Build artifacts:"
+          echo "Build artifacts:"
           ls -la target/
-          echo "🔍 JAR files found:"
+          echo "JAR files found:"
           find target -name "*.jar" -type f
 
       - name: Create Procfile for Elastic Beanstalk
         run: |
-          # PROCFILE CORREGIDO - Sin variables que GitHub ofusque
-          cat > Procfile << 'EOF'
-web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
-EOF
-          echo "✅ Procfile created:"
+          echo "web: java -Dserver.port=5000 -jar target/f4u-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod" > Procfile
+          echo "Procfile created:"
           cat Procfile
 
       - name: Create deployment package
@@ -50,7 +45,7 @@ EOF
           cd eb-deployment
           zip -r ../deployment-package.zip .
           cd ..
-          echo "📦 Deployment package created"
+          echo "Deployment package created"
           ls -la deployment-package.zip
 
       - name: Configure AWS credentials
@@ -75,23 +70,23 @@ EOF
 
       - name: Verify deployment
         run: |
-          echo "⏳ Waiting 120 seconds for application to start..."
+          echo "Waiting 120 seconds for application to start..."
           sleep 120
-          echo "🔍 Testing application endpoints..."
+          echo "Testing application endpoints..."
           ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
           
           echo "1. Testing health endpoint:"
-          curl -s -m 30 $ENDPOINT/health || echo "❌ Health endpoint failed"
+          curl -s -m 30 $ENDPOINT/health || echo "Health endpoint failed"
           
           echo "2. Testing actuator health:"
-          curl -s -m 30 $ENDPOINT/actuator/health || echo "❌ Actuator health failed"
+          curl -s -m 30 $ENDPOINT/actuator/health || echo "Actuator health failed"
           
           echo "3. Verifying JSON response:"
           RESPONSE=$(curl -s -m 10 $ENDPOINT/health)
-          if [[ $RESPONSE == *"status"* ]] && [[ $RESPONSE == *"UP"* ]]; then
-            echo "✅ Backend is working correctly!"
+          if echo "$RESPONSE" | grep -q "status" && echo "$RESPONSE" | grep -q "UP"; then
+            echo "Backend is working correctly!"
             echo "Response: $RESPONSE"
           else
-            echo "❌ Backend might not be running correctly"
+            echo "Backend might not be running correctly"
             echo "Response: $RESPONSE"
           fi
