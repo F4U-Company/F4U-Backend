@@ -3,8 +3,6 @@ name: 🚀 Deploy Backend to EC2
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'F4U-Backend-main/**'
   workflow_dispatch:
 
 jobs:
@@ -22,7 +20,6 @@ jobs:
           distribution: 'temurin'
 
       - name: Build with Maven
-        working-directory: ./F4U-Backend-main
         run: |
           echo "📦 Construyendo aplicación Spring Boot..."
           mvn clean package -DskipTests
@@ -30,7 +27,6 @@ jobs:
           echo "✅ Build completado - Archivos generados:"
           ls -la target/
           
-          # Verificar que el JAR se creó correctamente
           if [ ! -f "target/f4u-backend-0.0.1-SNAPSHOT.jar" ]; then
             echo "❌ ERROR: No se encontró el archivo JAR esperado"
             exit 1
@@ -49,11 +45,10 @@ jobs:
           echo "🔑 SSH configurado para EC2 (${{ secrets.EC2_HOST }})"
 
       - name: Deploy JAR to EC2
-        working-directory: ./F4U-Backend-main
         run: |
           echo "🚀 Iniciando despliegue en EC2..."
           
-          # 1. Crear backup del JAR anterior
+          # 1. Crear backup
           echo "💾 Creando backup del JAR anterior..."
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "
             if [ -f '/home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar' ]; then
@@ -63,16 +58,16 @@ jobs:
             fi
           "
           
-          # 2. Detener el servicio
+          # 2. Detener servicio
           echo "⏸ Deteniendo servicio f4u..."
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl stop f4u" || true
           sleep 3
           
-          # 3. Copiar el nuevo JAR
+          # 3. Copiar nuevo JAR
           echo "📤 Copiando nuevo JAR a EC2..."
           scp -o StrictHostKeyChecking=no target/f4u-backend-0.0.1-SNAPSHOT.jar ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/backend/target/
           
-          # 4. Verificar que se copió correctamente
+          # 4. Verificar copia
           echo "🔍 Verificando copia..."
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "
             ls -la /home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar
@@ -80,7 +75,7 @@ jobs:
             du -h /home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar
           "
           
-          # 5. Reiniciar el servicio
+          # 5. Reiniciar servicio
           echo "🔄 Reiniciando servicio..."
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl daemon-reload && sudo systemctl start f4u"
           
@@ -91,15 +86,12 @@ jobs:
         run: |
           echo "🔍 Verificando despliegue..."
           
-          # 1. Verificar estado del servicio
           echo "📊 Estado del servicio f4u:"
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl status f4u --no-pager | head -20"
           
-          # 2. Verificar que el proceso Java está corriendo
           echo "☕ Proceso Java activo:"
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "ps aux | grep 'java.*f4u-backend' | grep -v grep" || true
           
-          # 3. Verificar que la API responde
           echo "🌐 Probando endpoint /health..."
           HEALTH_STATUS=$(ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/health 2>/dev/null || echo 'curl_failed'")
           
@@ -112,7 +104,6 @@ jobs:
             echo "⚠️  Health check devolvió: $HEALTH_STATUS"
           fi
           
-          # 4. Probar endpoint de ciudades
           echo "🌍 Probando endpoint /api/cities..."
           ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "curl -s http://localhost:5000/api/cities | head -1" || echo "❌ API no responde"
 
