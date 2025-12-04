@@ -1,65 +1,125 @@
-name: Deploy Backend to AWS Elastic Beanstalk
+name: 🚀 Deploy Backend to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: Production
-    defaults:
-      run:
-        working-directory: .
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
       - name: Build with Maven
-        run: mvn clean package -DskipTests
-
-      - name: Create deployment package
         run: |
-          mkdir -p eb-deploy
-          cp target/f4u-backend-0.0.1-SNAPSHOT.jar eb-deploy/
-          echo "web: java -jar f4u-backend-0.0.1-SNAPSHOT.jar" > eb-deploy/Procfile
-          cd eb-deploy
-          zip -r ../deployment-package.zip .
-          cd ..
-          echo "📦 Package creado: $(ls -lh deployment-package.zip)"
+          echo "📦 Construyendo aplicación Spring Boot..."
+          mvn clean package -DskipTests
+          
+          echo "✅ Build completado - Archivos generados:"
+          ls -la target/
+          
+          if [ ! -f "target/f4u-backend-0.0.1-SNAPSHOT.jar" ]; then
+            echo "❌ ERROR: No se encontró el archivo JAR esperado"
+            exit 1
+          fi
+          
+          JAR_SIZE=$(stat -c%s "target/f4u-backend-0.0.1-SNAPSHOT.jar")
+          echo "📊 Tamaño del JAR: $((JAR_SIZE/1024/1024)) MB"
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2
-
-      - name: Deploy to Elastic Beanstalk
-        uses: einaregilsson/beanstalk-deploy@v21
-        with:
-          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          application_name: f4u-back
-          environment_name: f4u-back
-          version_label: backend-${{ github.sha }}
-          region: us-east-2
-          deployment_package: deployment-package.zip
-          wait_for_deployment: true
-          wait_for_environment_recovery: true
-
-      - name: Verify deployment
+      - name: Setup SSH Key
         run: |
-          echo "⏳ Esperando 60 segundos para verificación..."
-          sleep 60
-          echo "🔍 Verificando salud de la aplicación..."
-          ENDPOINT="http://f4u-back.eba-mytva22q.us-east-2.elasticbeanstalk.com"
-          curl -f $ENDPOINT/health || echo "⚠️ Health check falló, pero el deployment puede estar en progreso"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "🔑 SSH configurado para EC2 (${{ secrets.EC2_HOST }})"
+
+      - name: Deploy JAR to EC2
+        run: |
+          echo "🚀 Iniciando despliegue en EC2..."
+          
+          # 1. Crear backup
+          echo "💾 Creando backup del JAR anterior..."
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "
+            if [ -f '/home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar' ]; then
+              BACKUP_NAME=\"/home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar.backup.$(date +%Y%m%d_%H%M%S)\"
+              cp /home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar \"\$BACKUP_NAME\"
+              echo \"✅ Backup creado: \$BACKUP_NAME\"
+            fi
+          "
+          
+          # 2. Detener servicio
+          echo "⏸ Deteniendo servicio f4u..."
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl stop f4u" || true
+          sleep 3
+          
+          # 3. Copiar nuevo JAR
+          echo "📤 Copiando nuevo JAR a EC2..."
+          scp -o StrictHostKeyChecking=no target/f4u-backend-0.0.1-SNAPSHOT.jar ec2-user@${{ secrets.EC2_HOST }}:/home/ec2-user/backend/target/
+          
+          # 4. Verificar copia
+          echo "🔍 Verificando copia..."
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "
+            ls -la /home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar
+            echo '📊 Tamaño del nuevo JAR:'
+            du -h /home/ec2-user/backend/target/f4u-backend-0.0.1-SNAPSHOT.jar
+          "
+          
+          # 5. Reiniciar servicio
+          echo "🔄 Reiniciando servicio..."
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl daemon-reload && sudo systemctl start f4u"
+          
+          echo "⏳ Esperando 15 segundos para que el servicio inicie..."
+          sleep 15
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verificando despliegue..."
+          
+          echo "📊 Estado del servicio f4u:"
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo systemctl status f4u --no-pager | head -20"
+          
+          echo "☕ Proceso Java activo:"
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "ps aux | grep 'java.*f4u-backend' | grep -v grep" || true
+          
+          echo "🌐 Probando endpoint /health..."
+          HEALTH_STATUS=$(ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "curl -s -o /dev/null -w '%{http_code}' http://localhost:5000/health 2>/dev/null || echo 'curl_failed'")
+          
+          if [ "$HEALTH_STATUS" = "200" ]; then
+            echo "✅ Health check exitoso (HTTP 200)"
+          elif [ "$HEALTH_STATUS" = "curl_failed" ]; then
+            echo "⚠️  Curl falló - revisando logs..."
+            ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "sudo journalctl -u f4u --no-pager | tail -30"
+          else
+            echo "⚠️  Health check devolvió: $HEALTH_STATUS"
+          fi
+          
+          echo "🌍 Probando endpoint /api/cities..."
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} "curl -s http://localhost:5000/api/cities | head -1" || echo "❌ API no responde"
+
+      - name: Cleanup SSH Key
+        run: |
+          rm -f ~/.ssh/id_rsa
+          echo "🧹 SSH key eliminada"
+
+      - name: Deployment Summary
+        run: |
+          echo "=========================================="
+          echo "🎉 DESPLIEGUE COMPLETADO EXITOSAMENTE"
+          echo "=========================================="
+          echo "🌐 EC2 Host: ${{ secrets.EC2_HOST }}"
+          echo "🔗 Backend URL: http://${{ secrets.EC2_HOST }}:5000"
+          echo "🔗 API Endpoint: https://d34hoxniq2n0jw.cloudfront.net/api"
+          echo "🕐 Timestamp: $(date)"
+          echo "✅ Cada push a main actualizará automáticamente tu EC2"
+          echo "=========================================="

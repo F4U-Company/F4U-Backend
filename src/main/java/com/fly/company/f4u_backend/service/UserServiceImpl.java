@@ -40,7 +40,7 @@ public class UserServiceImpl implements UserService {
             user = existingUser.get();
             // Actualización simplificada - los setters serán generados por Lombok en
             // runtime
-            System.out.println("Usuario existente encontrado: " + email);
+            System.out.println("usuario existente encontrado: " + email);
         } else {
             // Crear nuevo usuario - por ahora simulado
             System.out.println("Nuevo usuario simulado creado: " + email);
