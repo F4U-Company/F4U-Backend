@@ -234,27 +234,47 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public Map<String, Object> getUserStats(String email) {
         Map<String, Object> stats = new HashMap<>();
+        
+        System.out.println("📊 [getUserStats] Buscando estadísticas para email: " + email);
 
-        // Total de reservas
+        // Total de reservas (todas, sin importar estado)
         List<Reservation> allReservations = reservationRepository.findByPasajeroEmail(email);
+        System.out.println("📊 [getUserStats] Total de reservas encontradas: " + allReservations.size());
+        
+        // Si no encuentra por email exacto, intentar con todas las reservas para debug
+        if (allReservations.isEmpty()) {
+            System.out.println("⚠️ [getUserStats] No se encontraron reservas con email exacto, buscando todas las reservas...");
+            List<Reservation> todasReservas = reservationRepository.findAll();
+            System.out.println("📋 Total de reservas en BD: " + todasReservas.size());
+            if (!todasReservas.isEmpty()) {
+                System.out.println("📋 Emails encontrados en BD:");
+                todasReservas.forEach(r -> System.out.println("  - " + r.getPasajeroEmail() + " (Estado: " + r.getEstado() + ")"));
+            }
+        }
+        
         stats.put("totalReservations", allReservations.size());
 
-        // Reservas activas (CONFIRMADA)
-        List<Reservation> activeReservations = reservationRepository.findByPasajeroEmailAndEstado(email, "CONFIRMADA");
+        // Reservas activas (CONFIRMADA o PAGADA)
+        List<Reservation> activeReservations = reservationRepository.findByPasajeroEmail(email).stream()
+                .filter(r -> "CONFIRMADA".equals(r.getEstado()) || "PAGADA".equals(r.getEstado()))
+                .collect(java.util.stream.Collectors.toList());
         stats.put("activeReservations", activeReservations.size());
+        System.out.println("📊 [getUserStats] Reservas activas: " + activeReservations.size());
 
-        // Millas acumuladas (1000 millas por reserva confirmada)
-        long accumulatedMiles = activeReservations.size() * 1000L;
+        // Millas acumuladas (1000 millas por cada reserva, activa o no)
+        long accumulatedMiles = allReservations.size() * 1000L;
         stats.put("accumulatedMiles", accumulatedMiles);
 
-        // Nivel basado en reservas confirmadas
+        // Nivel basado en total de reservas
         String level = "Bronce";
-        if (activeReservations.size() >= 10) {
+        if (allReservations.size() >= 10) {
             level = "Oro";
-        } else if (activeReservations.size() >= 5) {
+        } else if (allReservations.size() >= 5) {
             level = "Plata";
         }
         stats.put("level", level);
+        
+        System.out.println("📊 [getUserStats] Stats finales: " + stats);
 
         // Próximo vuelo (si hay reservas activas)
         if (!activeReservations.isEmpty()) {
