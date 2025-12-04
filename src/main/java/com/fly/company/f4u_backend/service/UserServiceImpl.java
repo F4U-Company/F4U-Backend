@@ -30,7 +30,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public User createOrUpdateUserFromAzure(String azureObjectId, String email, String displayName,
             String givenName, String surname, String tenantId) {
-        System.out.println("Creando/actualizando1 usuario desde Azure AD: " + email);
+        System.out.println("Creando/actualizando usuario desde Azure AD: " + email);
 
         Optional<User> existingUser = userRepository.findByAzureObjectId(azureObjectId);
 
