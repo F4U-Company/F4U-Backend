@@ -30,6 +30,7 @@ public class SecurityConfig {
                     "/api/seat-locks/**",
                     "/api/reservaciones/**",
                     "/api/health/**",
+                    "/api/test/**",
                     "/api/chatbot/**",
                     "/actuator/health"
                 ).permitAll()
