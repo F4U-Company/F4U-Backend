@@ -31,9 +31,16 @@ public class ReservationController {
     }
 
     @PostMapping("/try-lock/{seatId}")
-    public ResponseEntity<?> tryLock(@PathVariable Long seatId, @RequestBody(required = false) String userId) {
-        // Si no se proporciona userId, generar uno temporal
+    public ResponseEntity<?> tryLock(@PathVariable Long seatId, @RequestBody(required = false) Map<String, String> body) {
+        // Si no se proporciona userId en el body, generar uno temporal
+        String userId = (body != null && body.containsKey("userId")) ? body.get("userId") : null;
         String user = (userId != null && !userId.isEmpty()) ? userId : "reservation-user-" + System.currentTimeMillis();
+        
+        System.out.println("🔑 Try-lock request:");
+        System.out.println("   - SeatId: " + seatId);
+        System.out.println("   - UserId recibido: " + userId);
+        System.out.println("   - UserId final: " + user);
+        
         boolean ok = seatLockService.tryLock(seatId, user);
         if (ok) return ResponseEntity.ok().build();
         else return ResponseEntity.status(409).body("Seat locked");

@@ -2,6 +2,7 @@ package com.fly.company.f4u_backend.controller;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -41,7 +42,8 @@ class ReservationControllerExtraTest {
     void testTryLockSuccess() {
         when(seatLockService.tryLock(eq(100L), anyString())).thenReturn(true);
         
-        ResponseEntity<?> response = reservationController.tryLock(100L, "user123");
+        Map<String, String> body = Map.of("userId", "user123");
+        ResponseEntity<?> response = reservationController.tryLock(100L, body);
         
         assertEquals(200, response.getStatusCodeValue());
         verify(seatLockService, times(1)).tryLock(eq(100L), anyString());
@@ -51,7 +53,8 @@ class ReservationControllerExtraTest {
     void testTryLockFailed() {
         when(seatLockService.tryLock(eq(200L), anyString())).thenReturn(false);
         
-        ResponseEntity<?> response = reservationController.tryLock(200L, "user456");
+        Map<String, String> body = Map.of("userId", "user456");
+        ResponseEntity<?> response = reservationController.tryLock(200L, body);
         
         assertEquals(409, response.getStatusCodeValue());
         assertEquals("Seat locked", response.getBody());
@@ -71,7 +74,8 @@ class ReservationControllerExtraTest {
     void testTryLockWithEmptyUserId() {
         when(seatLockService.tryLock(eq(400L), anyString())).thenReturn(true);
         
-        ResponseEntity<?> response = reservationController.tryLock(400L, "");
+        Map<String, String> body = Map.of("userId", "");
+        ResponseEntity<?> response = reservationController.tryLock(400L, body);
         
         assertEquals(200, response.getStatusCodeValue());
         verify(seatLockService, times(1)).tryLock(eq(400L), startsWith("reservation-user-"));

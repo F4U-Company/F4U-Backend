@@ -18,7 +18,7 @@
   <description>Fly For You - Backend</description>
 
   <properties>
-    <java.version>21</java.version>
+    <java.version>17</java.version>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -126,7 +126,7 @@
 
   <build>
     <plugins>
-      <!-- Compiler plugin: usa release para compatibilidad con Java 21 -->
+      <!-- Compiler plugin: usa release para compatibilidad con Java 17 -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>

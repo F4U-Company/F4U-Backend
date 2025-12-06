@@ -77,7 +77,8 @@ class ReservationControllerTest {
     void testTryLock_Success() {
         when(seatLockService.tryLock(1L, "user123")).thenReturn(true);
 
-        ResponseEntity<?> response = reservationController.tryLock(1L, "user123");
+        Map<String, String> body = Map.of("userId", "user123");
+        ResponseEntity<?> response = reservationController.tryLock(1L, body);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(seatLockService).tryLock(1L, "user123");
@@ -87,7 +88,8 @@ class ReservationControllerTest {
     void testTryLock_Failed() {
         when(seatLockService.tryLock(1L, "user123")).thenReturn(false);
 
-        ResponseEntity<?> response = reservationController.tryLock(1L, "user123");
+        Map<String, String> body = Map.of("userId", "user123");
+        ResponseEntity<?> response = reservationController.tryLock(1L, body);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertEquals("Seat locked", response.getBody());
